@@ -282,10 +282,11 @@ export class AuthService {
     const rawRefreshToken = this.hashingService.generateSecureToken(48);
     const refreshTokenHash = this.hashingService.hashToken(rawRefreshToken);
 
-    const refreshDays = parseInt(
-      this.configService.get<string>('JWT_REFRESH_EXPIRATION_DAYS') || '30',
-      10,
-    );
+    const refreshDaysStr =
+      this.configService.get<string>('JWT_REFRESH_EXPIRATION_DAYS') ||
+      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN')?.replace(/\D/g, '') ||
+      '30';
+    const refreshDays = parseInt(refreshDaysStr, 10) || 30;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + refreshDays);
 
