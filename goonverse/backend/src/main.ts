@@ -81,10 +81,10 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = configService.get<number>('PORT') || 3000;
-  await app.listen(port);
-  logger.log(`Goonverse Backend running on: http://localhost:${port}`);
-  logger.log(`Swagger OpenAPI Docs available at: http://localhost:${port}/api/docs`);
+  const port = configService.get<number>('PORT') || process.env.PORT || 3000;
+  await app.listen(port, '0.0.0.0');
+  logger.log(`Goonverse Backend running on: http://0.0.0.0:${port}`);
+  logger.log(`Swagger OpenAPI Docs available at: http://0.0.0.0:${port}/api/docs`);
 }
 
 bootstrap();
