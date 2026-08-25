@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: goonverse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-goonverse}
+      POSTGRES_USER: ${POSTGRES_USER:-goonverse_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-goonverse_secret_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-goonverse_user} -d ${POSTGRES_DB:-goonverse}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:RELEASE.2024-03-30T09-41-56Z
+    container_name: goonverse-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-goonverse_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-goonverse_storage_secret}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+    name: goonverse_postgres_data
+  minio_data:
+    name: goonverse_minio_data

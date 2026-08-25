@@ -1,0 +1,198 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  SUPER_ADMIN
+}
+
+enum ReportTargetType {
+  IMAGE
+  PERSON
+  USER
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+model User {
+  id                  String    @id @default(uuid()) @db.Uuid
+  email               String    @unique @db.VarChar(255)
+  username            String    @unique @db.VarChar(50)
+  password_hash       String    @db.VarChar(255)
+  role                UserRole  @default(USER)
+  age_verified        Boolean   @default(false)
+  terms_accepted_at   DateTime? @db.Timestamptz(6)
+  privacy_accepted_at DateTime? @db.Timestamptz(6)
+  suspended_at        DateTime? @db.Timestamptz(6)
+  suspension_reason   String?   @db.Text
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @updatedAt @db.Timestamptz(6)
+  deleted_at          DateTime? @db.Timestamptz(6)
+
+  people           Person[]
+  images           Image[]
+  activities       Activity[]
+  tags             Tag[]
+  refresh_tokens   RefreshToken[]
+  audit_logs       AdminAuditLog[] @relation("AdminAuditor")
+  submitted_reports Report[]       @relation("Reporter")
+  reviewed_reports  Report[]       @relation("Reviewer")
+
+  @@index([deleted_at])
+  @@index([suspended_at])
+  @@index([role])
+  @@map("users")
+}
+
+model Person {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  name       String    @db.VarChar(100)
+  notes      String?   @db.Text
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  images     Image[]
+  activities Activity[]
+
+  @@index([user_id, deleted_at])
+  @@index([user_id, name])
+  @@map("people")
+}
+
+model Image {
+  id                String    @id @default(uuid()) @db.Uuid
+  user_id           String    @db.Uuid
+  person_id         String?   @db.Uuid
+  storage_key       String    @unique @db.VarChar(500)
+  original_filename String    @db.VarChar(255)
+  mime_type         String    @db.VarChar(100)
+  file_size         Int
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(6)
+  deleted_at        DateTime? @db.Timestamptz(6)
+
+  user       User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  person     Person?     @relation(fields: [person_id], references: [id], onDelete: SetNull)
+  activities Activity[]
+  image_tags ImageTag[]
+
+  @@index([user_id, deleted_at])
+  @@index([person_id])
+  @@index([created_at])
+  @@map("images")
+}
+
+model Activity {
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String   @db.Uuid
+  person_id   String?  @db.Uuid
+  image_id    String?  @db.Uuid
+  occurred_at DateTime @db.Timestamptz(6)
+  notes       String?  @db.Text
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  user   User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  person Person? @relation(fields: [person_id], references: [id], onDelete: SetNull)
+  image  Image?  @relation(fields: [image_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, occurred_at])
+  @@index([person_id])
+  @@index([image_id])
+  @@index([user_id, person_id])
+  @@map("activities")
+}
+
+model Tag {
+  id      String @id @default(uuid()) @db.Uuid
+  user_id String @db.Uuid
+  name    String @db.VarChar(50)
+
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  image_tags ImageTag[]
+
+  @@unique([user_id, name])
+  @@index([user_id])
+  @@map("tags")
+}
+
+model ImageTag {
+  image_id String @db.Uuid
+  tag_id   String @db.Uuid
+
+  image Image @relation(fields: [image_id], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@id([image_id, tag_id])
+  @@index([tag_id])
+  @@map("image_tags")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  token_hash String    @db.VarChar(255)
+  expires_at DateTime  @db.Timestamptz(6)
+  revoked_at DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, revoked_at])
+  @@map("refresh_tokens")
+}
+
+model AdminAuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  admin_user_id String   @db.Uuid
+  action        String   @db.VarChar(100)
+  target_type   String   @db.VarChar(100)
+  target_id     String?  @db.VarChar(255)
+  metadata      Json?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  admin User @relation("AdminAuditor", fields: [admin_user_id], references: [id], onDelete: Cascade)
+
+  @@index([admin_user_id, created_at])
+  @@index([target_type, target_id])
+  @@index([action, created_at])
+  @@map("admin_audit_logs")
+}
+
+model Report {
+  id               String           @id @default(uuid()) @db.Uuid
+  reporter_user_id String           @db.Uuid
+  target_type      ReportTargetType
+  target_id        String           @db.VarChar(255)
+  reason           String           @db.VarChar(255)
+  description      String?          @db.Text
+  status           ReportStatus     @default(OPEN)
+  reviewed_by_id   String?          @db.Uuid
+  reviewed_at      DateTime?        @db.Timestamptz(6)
+  resolution_notes String?          @db.Text
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @updatedAt @db.Timestamptz(6)
+
+  reporter User  @relation("Reporter", fields: [reporter_user_id], references: [id], onDelete: Cascade)
+  reviewer User? @relation("Reviewer", fields: [reviewed_by_id], references: [id], onDelete: SetNull)
+
+  @@index([status, created_at])
+  @@index([target_type, target_id])
+  @@index([reporter_user_id])
+  @@map("reports")
+}
